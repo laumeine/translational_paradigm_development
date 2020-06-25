@@ -1,0 +1,1560 @@
+---
+title: "Analyses for 'A Translational Paradigm to Study the Effects of Uncontrollable Stress in Humans'"
+subtitle: "Study 1 Analysis"
+author: "Laura E. Meine and Katja Schueler"
+date: "25.06.2020"
+output:
+   html_document:
+    theme: flatly
+    toc: yes
+    toc_float: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr:: opts_chunk$set(cache = TRUE, echo = FALSE, warning = FALSE, message = FALSE, fig.align="center")
+```
+# Summary
+
+This script runs analyses on data from study 1. Specifically, it compares data from three groups of participants who underwent escapable stress (EC), yoked inescapable stress (YC), or a control condition (CC), respectively. Here, we use the terms "group" and "condition" interchangeably. 
+Measurements under investigation comprised reaction times (RTs) and ratings under acute stress (stressor aversiveness, control, exhaustion, frustration, helplessness) as well as pre-post changes in affective state (STADI and PANAS questionnaires), effects on working memory (reading span), and escape behaviour (activity, exploration, escapes, efficiency). 
+
+```{r load libraries}
+library(tidyverse)
+library(afex) 
+library(ggpubr) # for easy plotting
+library(rstatix)
+library(Rmisc) 
+library(lsmeans)  
+library(effsize) 
+library(WRS2) # for robust ANOVA
+```
+
+```{r create ggplot theme}
+# set standard ggplot theme
+laura_theme <- theme(panel.border = element_rect(colour="black", fill="transparent", size=1),
+                     panel.background = element_rect(fill="transparent"),
+                     axis.line = element_line(colour="black"),
+                     panel.grid.minor = element_line(colour="transparent"),
+                     axis.title.x = element_text(size=16, vjust=-.25),
+                     axis.title.y = element_text(size=16, vjust=1),
+                     axis.text.x = element_text(size=14, colour="black"),
+                     axis.text.y = element_text(size=14, colour="black"),
+                     strip.text.x = element_text(size = 20),
+                     legend.text=element_text(size=14),
+                     legend.title = element_text(size = 16),
+                     plot.title = element_text(hjust = 0.5))
+
+# define 3 theme colours to use (colorblind-friendly, s. http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/)
+colour1 = "#56B4E9" 
+colour2 = "#009E73" 
+colour3 = "#D55E00" 
+```
+
+```{r import data}
+# read in study 1 data
+demo <- read.csv("study1_data/study1_demographics.csv", header=T)
+stress <- read.csv("study1_data/study1_stress_induction.csv", sep=";", header=T)
+affStates <- read.csv("study1_data/study1_affect_states.csv", header=T)
+escapeBehav <- read.csv("study1_data/study1_escape_behaviour.csv", header=T)
+readSpan <- read.csv("study1_data/study1_reading_span.csv", sep=";", header=T)
+```
+
+# Sample Descriptives
+
+```{r sample descriptives}
+# define variables to shorten code
+EC <- demo$condition=="EC"
+YC <- demo$condition=="YC"
+CC <- demo$condition=="CC"
+
+# function for plotting
+stat_sum_single <- function(fun, geom="point", ...) {
+  stat_summary(fun.y=fun, shape = 23, fill = "white", geom = geom, size = 3, ...)} #summarise y values
+
+# sample sizes
+N <- nrow(demo) # 80
+n <- table(demo$condition) # 27 EC, 26 YC, 27 CC
+```
+In total, the sample consisted of *N* = `r N` participants with *n* = `r n[1]` in CC, *n* = `r n[2]` in EC, and *n* = `r n[3]` in YC. 
+
+## Age & Sex
+```{r plot age by sex}
+# percent female
+ec.f <- (table(demo$sex[EC])[1]/nrow(demo[EC,]))*100
+yc.f <- (table(demo$sex[YC])[1]/nrow(demo[YC,]))*100
+cc.f <- (table(demo$sex[CC])[1]/nrow(demo[CC,]))*100
+
+# age by condition
+age_descr <- summarySE(demo, measurevar="age_sess2", groupvars="condition", conf.interval=.95) 
+
+# plot age distribution by sex
+ageHist <- ggplot(demo, aes(x = trunc(age_sess2), fill = as.factor(sex))) +
+  geom_histogram(colour = "white", bins = 14) +
+  scale_fill_manual(values = c(colour1, colour2), name="Sex") +
+  xlab("Age") +
+  laura_theme
+ageHist
+```
+
+```{r check education}
+# school_quali: 1 = none, 2 = Sonderschule, 3 = Volksschule, 4 = Hauptschule, 5 = Mittlere Reife, 6 = Fachabitur, 7 = Abitur
+
+demo$school_quali <- as.factor(demo$school_quali)
+educationLevels <- levels(demo$school_quali) # 5,6
+nEdu5 <- nrow(demo[demo$school_quali==5, ]) # 1 participant has "Mittlere Reife" only
+
+# all but one participant have "Abitur"
+```
+
+# A Priori Group Difference Checks
+
+## Sex (Chi-square Test)
+```{r check sex}
+# run chi-square test
+chisqSex <- chisq.test(demo$condition, demo$sex)
+chisqSex
+```
+There were no a priori group differences in male-female ratio.
+
+## Age (one-way ANOVA)
+```{r check age - assumptions for one-way ANOVA, include = FALSE}
+# check assumptions for one-way ANOVA
+
+# check for outliers by group
+ageOutlier <- ggplot(demo, aes(condition, age_sess2, fill=condition)) + 
+    geom_violin() +
+    geom_boxplot(width=0.2) +
+    stat_sum_single(mean) +
+    xlab("Experimental Condition") +
+    ylab("Age") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+ageOutlier # some outliers
+
+# get outlier IDs
+ageOutlierIDs <- demo %>%
+  group_by(condition) %>%
+  identify_outliers(age_sess2)
+
+# output outlier IDs
+#unique(ageOutlierIDs$ID) 
+
+# exclude all identified outliers
+#demo_age <- demo[! (demo$ID=="CC_001" | demo$ID=="CC_002" |
+#                demo$ID=="CC_004" | demo$ID=="CC_019" |
+#                demo$ID=="CC_016" | demo$ID=="CC_027"), ]
+
+# output extreme outliers
+#unique(ageOutlierIDs$ID[ageOutlierIDs$is.extreme==T]) # 2 38-year-olds
+
+# exclude extreme outliers
+#demo_age <- demo[! (demo$ID=="CC_002" | demo$ID=="CC_019"), ]
+
+# check assumption of normally distributed residuals
+ageModel  <- lm(age_sess2 ~ condition, data = demo)
+ggqqplot(residuals(ageModel))
+shapiro_test(residuals(ageModel)) # residuals are non-normally distributed
+```
+Because residuals were not normally distributed, we employed the Kruskal-Wallis test instead of a one-way ANOVA.
+
+```{r check age}
+# run Kruskal-Wallis test instead of one-way ANOVA
+kruskal.test(age_sess2 ~ condition, data = demo) 
+# sig. differences in age across groups, only trend if extreme outliers are excluded
+
+# exclude outliers to check if subsequent analyses yield different results
+#demo <- demo[! (demo$ID=="CC_002" | demo$ID=="CC_019"), ]
+
+# age outliers don't affect other analyses 
+```
+There were some outliers and we checked for the 2 extreme cases but rerunning all analyses without those did not change the results, so we kept them.
+
+## Working Memory IQ (one-way ANOVA)
+```{r check wmIQ - assumptions for one-way ANOVA, plot to identify outliers}
+# check assumptions for one-way ANOVA
+
+# check for outliers by group
+wmIQOutlier <- ggplot(demo, aes(condition, workingmem_IQ, fill=condition)) + 
+    geom_violin() +
+    geom_boxplot(width=0.2) +
+    stat_sum_single(mean) +
+    xlab("Experimental Condition") +
+    ylab("Working Memory IQ") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+wmIQOutlier # no outliers
+```
+There were no outliers with respect to working memory IQ.
+
+```{r check wmIQ - assumptions for one-way ANOVA, include = FALSE}
+# check assumption of normally distributed residuals
+wmIQModel  <- lm(workingmem_IQ ~ condition, data = demo)
+ggqqplot(residuals(wmIQModel))
+shapiro_test(residuals(wmIQModel)) # residuals are normally distributed
+
+# verify homogeneity of variance
+demo %>% levene_test(workingmem_IQ ~ condition)
+plot <- plot(wmIQModel, 1) 
+```
+```{r check wmIQ}
+# run one-way ANOVA
+wmIQ.fit <- aov_ez("ID","workingmem_IQ", demo, between="condition")
+#nice(wmIQ.fit)
+nice(wmIQ.fit, es="pes") # get partial eta squared instead of generalised eta squared
+
+# wmIQ by condition
+wmIQ_descr <- summarySE(demo, measurevar="workingmem_IQ", groupvars="condition", conf.interval=.95) 
+```
+There were no a priori group differences in working memory IQ.
+
+## Alertness (one-way ANOVA)
+```{r check alertness - assumptions for one-way ANOVA, plot to identify outliers}
+# check assumptions for one-way ANOVA
+
+# check for outliers by group
+alertOutlier <- ggplot(demo, aes(condition, TAPalertness, fill=condition)) + 
+    geom_violin() +
+    geom_boxplot(width=0.2) +
+    stat_sum_single(mean) +
+    xlab("Experimental Condition") +
+    ylab("Alertness") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+alertOutlier # no outliers
+```
+There were no outliers with respect to alertness.
+
+```{r check alertness - assumptions for one-way ANOVA, include = FALSE}
+# check assumption of normally distributed residuals
+alertModel  <- lm(TAPalertness ~ condition, data = demo)
+ggqqplot(residuals(alertModel))
+shapiro_test(residuals(alertModel)) # residuals are normally distributed
+
+# verify homogeneity of variance
+demo %>% levene_test(TAPalertness ~ condition)
+plot(alertModel, 1) 
+```
+```{r check alertness}
+# run one-way ANOVA
+alert.fit <- aov_ez("ID","TAPalertness", demo, between="condition")
+#nice(alert.fit)
+nice(alert.fit, es="pes") # get partial eta squared
+
+# alertness by condition
+alert_descr <- summarySE(demo, measurevar="TAPalertness", groupvars="condition", conf.interval=.95) 
+```
+There were no a priori group differences in alertness.
+
+```{r add demopgraphic variables to data}
+# add demographic variables to other data frames 
+stress <- join(demo, stress)
+affStates <- join(demo, affStates)
+escapeBehav <- join(demo, escapeBehav)
+readSpan <- join(demo, readSpan)
+```
+
+# Manipulation Check
+
+## Verify Yoking of Stress Durations
+```{r yoking check}
+# plot stress_duration by trial and condition
+stressDurPlot <- ggplot(stress, aes(trial, stress_duration, fill=condition)) +
+  geom_bar(stat = "summary", position="dodge", fun.y="mean") + 
+  scale_x_continuous(breaks=seq(1,40,1)) +
+  ylim(0,15) + # max. possible duration was 15s
+  ylab("Stress Duration (s)") +
+  xlab("Trial") +
+  laura_theme + theme(axis.text.x = element_text(size = 6)) +
+  scale_fill_manual(values=c(colour1, colour2, colour3))
+stressDurPlot 
+
+# run t-test for independent samples
+t.test(stress$stress_duration[stress$condition=="EC"], stress$stress_duration[stress$condition=="YC"], paired=F) # n.s.
+
+# stress duration means are not exactly equivalent because we had to exclude one YC participant due to poor German skills
+```
+There were no differences in stress durations between EC and YC because YC participants were yoked to EC participants. Very slight timing inaccurracies are due to program execution differences. EC and CC performed at ceiling, responding fast enough to each cue as evidenced in mean stress duration well below the 15s maximum in each trial. Thus, there were no group differences in durations.
+
+```{r prepare rating data}
+# extract rating rows (every 10th trial = 4 ratings per ID)
+ratings <- stress[seq(0, nrow(stress), 10), ]
+
+# calculate mean ratings by ID
+ratingMean <- ratings %>%   group_by(ID) %>%  summarise_all(funs(mean(., na.rm = TRUE)))
+ratingMean <- ratingMean[, -c(2:4,8,11,14)] # delete unnecessary columns
+ratingMean <- join(ratingMean, demo[, c(1:3)]) # add condition and sex again
+```
+
+## Stressor Aversiveness
+```{r manipulation check - aversiveness ratings, plot to identify outliers}
+# verify that stressor was stressful, i.e. rated aversive in EC and YC
+
+# exclude CC and cases with missing responses (1 EC, 3 YC)
+ratings_avers <- ratings[! (ratings$condition=="CC" | is.na(ratings$aversive_rating)), ]
+ratingMean_avers <- ratingMean[! (ratingMean$condition=="CC" | is.na(ratingMean$aversive_rating)), ]
+
+avers.m <- mean(ratingMean_avers$aversive_rating) # global mean rating
+
+# boxplot by group and trial
+aversBoxPlot <- ggplot(ratings_avers, aes(factor(trial), aversive_rating, fill=condition)) + 
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+    ylab("Stressor Aversiveness") +
+    xlab("Trial") +
+    scale_fill_manual(values=c(colour2, colour3)) +
+    laura_theme
+aversBoxPlot # some outliers
+
+# check for outliers by group and trial (this is more sensitive because e.g. shock electrode may not have transmitted properly in some trials)
+aversOutlierIDs <- ratings_avers %>%
+  group_by(condition, trial) %>%
+  identify_outliers(aversive_rating) # 8 outliers
+
+# output all outliers
+#unique(aversOutlierIDs$ID) 
+
+# exclude all identified outliers
+ratings_avers <- ratings_avers[! (ratings_avers$ID=="EC_017" | ratings_avers$ID=="EC_024" |
+                                   ratings_avers$ID=="EC_025" | ratings_avers$ID=="YC_001" | 
+                                   ratings_avers$ID=="YC_017" | ratings_avers$ID=="YC_025" | 
+                                   ratings_avers$ID=="YC_021" | ratings_avers$ID=="YC_022"), ] 
+#changes results and it makes sense to exclude them because aversiveness was specifically calibrated and low ratings are likely due to electrode malfunctioning etc.
+
+# output extreme outliers
+#unique(aversOutlierIDs$ID[aversOutlierIDs$is.extreme==T]) # none
+```
+There were outliers with particularly low aversiveness ratings which we excluded from this analysis because they affected the results. However, since they did not affect subsequent analyses, we included them in those.
+
+```{r manipulation check - aversiveness ratings}
+# aversiveness ratings by condition
+avers_group_descr <- summarySE(ratingMean_avers, measurevar="aversive_rating", groupvars="condition", conf.interval=.95) 
+
+# aversiveness ratings by condition and trial
+avers_trial_descr <- summarySEwithin(ratings_avers, measurevar="aversive_rating", betweenvars="condition", withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# aversiveness ratings by condition, trial, and sex
+avers_trial_sex_descr <- summarySEwithin(ratings_avers, measurevar="aversive_rating", betweenvars=c("condition", "sex"), withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# plot ratings across trials by group
+aversPlot <- ggplot(avers_trial_descr, aes(as.numeric(as.character(trial)), aversive_rating, colour=condition)) +
+  geom_line(size=1) +
+  geom_errorbar(aes(ymin=aversive_rating-se, ymax=aversive_rating+se), width=.1) +
+  scale_y_continuous(breaks=c(1:7), limits=c(0.9,7.1)) + # max. possible rating was 7
+  ylab("Stressor Aversiveness") +
+  xlab("Trial") +
+  scale_color_manual(values=c(colour2, colour3))  +
+  laura_theme
+aversPlot
+
+# test whether groups differed in stressor aversiveness and whether ratings changed over time
+# rmANOVA with condition and trial and sex as covariate
+
+# check normality assumption
+aversqqplot <- ggqqplot(ratings_avers, "aversive_rating", ggtheme = theme_bw()) +
+  facet_grid(trial ~ condition, labeller = "label_both") # looks acceptable
+#aversqqplot
+
+# run rmANOVA
+avers.fit <- aov_ez("ID","aversive_rating", ratings_avers, between="condition", within="trial", covariate="sex") #sphericity is automatically checked and corrected if needed
+summary(avers.fit) 
+#nice(avers.fit)
+nice(avers.fit, es="pes")
+
+# no main effect of group, EC and YC both rate stress as very aversive
+# no main effect of trial, trend for an effect of trial if outliers are excluded
+# sig. effect of sex (men rate stressor as less aversive), rendered insig. if outliers are excluded
+
+# post-hoc comparisons - trial
+ref1 <- lsmeans(avers.fit, specs = "trial")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# aversiveness ratings increase slightly towards end of the experiment, though this is only a trend effect
+# --> no habituation, if anything, sensitization
+
+# plot ratings split for sex
+aversSexPlot <- ggboxplot(
+  ratings_avers, x = "sex", y = "aversive_rating",
+  facet.by = "condition", short.panel.labs = FALSE)
+aversSexPlot
+```
+Both EC and YC rated the stressor as very aversive (global *M* = `r avers.m`). Mean aversiveness ratings did not differ between groups. Stressor aversiveness ratings slightly increased over time. There was no sex effect (at least not if outliers with very low ratings - who happened to be mostly male - were excluded).
+
+## Perceived Stressor Controllability
+```{r manipulation check - controllability ratings,  plot to identify outliers}
+# boxplot by group and trial
+ctrlBoxPlot <- ggplot(ratings, aes(factor(trial), control_rating, fill=condition)) + 
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+    ylab("Perceived Control") +
+    xlab("Trial") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+ctrlBoxPlot # some outliers
+
+# get outlier IDs
+ctrlOutlierIDs <- ratings %>%
+  group_by(condition, trial) %>%
+  identify_outliers(control_rating)
+
+# output all outliers
+#unique(ctrlOutlierIDs$ID) 
+
+# exclude all identified outliers
+#ratings_ctrl <- ratings[! (ratings$ID=="CC_025" | ratings$ID=="CC_027" |
+#                           ratings$ID=="CC_003" | ratings$ID=="CC_005" | 
+#                           ratings$ID=="CC_019" | ratings$ID=="YC_016" | 
+#                           ratings$ID=="YC_017" | ratings$ID=="YC_010" | ratings$ID=="YC_022"), ] #does not change results significantly
+
+# output extreme outliers
+#unique(ctrlOutlierIDs$ID[ctrlOutlierIDs$is.extreme==T])
+
+# exclude extreme outlier
+#ratings_ctrl <- ratings[ratings$ID!="CC_019", ] #doesn't affect results
+```
+There were some outliers with respect to perceived control but excluding them did not affect results, so we kept them.
+
+```{r manipulation check - controllability ratings}
+# controllability ratings by condition
+ctrl_group_descr <- summarySE(ratingMean, measurevar="control_rating", groupvars="condition", conf.interval=.95) 
+
+# controllability ratings by condition and trial
+ctrl_trial_descr <- summarySEwithin(ratings, measurevar="control_rating", betweenvars="condition", withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# controllability ratings by condition, trial, and sex
+ctrl_trial_sex_descr <- summarySEwithin(ratings, measurevar="control_rating", betweenvars=c("condition", "sex"), withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# plot ratings across trials by group
+ctrlPlot <- ggplot(ctrl_trial_descr, aes(as.numeric(as.character(trial)), control_rating, colour=condition)) +
+  geom_line(size=1) +
+  geom_errorbar(aes(ymin=control_rating-se, ymax=control_rating+se), width=.1) +
+  scale_y_continuous(breaks=c(1:7), limits=c(0.9,7.1)) +
+  ylab("Perceived Control") +
+  xlab("Trial") +
+  scale_color_manual(values=c(colour1, colour2, colour3))  +
+  laura_theme
+ctrlPlot
+
+# rmANOVA with condition and trial and sex as covariate
+
+# check normality assumption
+ctrlqqplot <- ggqqplot(ratings, "control_rating", ggtheme = theme_bw()) +
+  facet_grid(trial ~ condition, labeller = "label_both") # looks ok
+#ctrlqqplot
+
+# run rmANOVA
+ctrl.fit <- aov_ez("ID","control_rating", ratings, between="condition", within="trial", covariate="sex")
+summary(ctrl.fit)
+nice(ctrl.fit, es="pes")
+
+# main effect of condition
+# trend for a main effect of trial
+# no sex differences
+
+# post-hoc comparisons - condition
+ref1 <- lsmeans(ctrl.fit, specs = "condition")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# all groups differed significantly from each other
+
+# post-hoc comparisons - trial
+ref2 <- lsmeans(ctrl.fit, specs = "trial")
+pwc <- contrast(ref2, method="pairwise", adjust="holm")
+pwc
+
+# perceived control decreased, especially towards the end of the experiment
+```
+We observed group differences in perceived control in the expected direction: YC reported lowest, EC middle, CC highest perceived control. There was a trend effect of time and perceived control decreased slightly over time.
+
+# RTs and Ratings During Stress Exposure
+
+## RTs
+```{r prepare RT data}
+# convert to ms
+stress$rt <- stress$rt*1000
+
+# calculate mean RT by ID
+RTMean <- aggregate(rt ~ ID, stress, FUN=mean)
+RTMean <- join(RTMean, demo[, c(1:3)]) # add condition and sex again
+
+# check if there are participants who never reacted to the cue
+naRTIDs <- unique(RTMean$ID[is.na(RTMean$rt)]) # none
+
+# CC_027 did not react at all, exclude
+stress_rt <- stress[stress$ID!="CC_027", ] 
+RTMean <- RTMean[RTMean$ID!="CC_027", ]
+```
+```{r RTs, plot distribution to identify outliers}
+# check for outliers by group
+RTOutlier <- ggplot(RTMean, aes(condition, rt, fill=condition)) + 
+    geom_violin() +
+    geom_boxplot(width=0.2) +
+    stat_sum_single(mean) +
+    xlab("Experimental Condition") +
+    ylab("Mean RT") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+RTOutlier # 2 outliers
+
+# get outlier IDs
+RTOutlierIDs <- RTMean %>%
+  group_by(condition) %>%
+  identify_outliers(rt)
+
+# output outliers
+#unique(RTOutlierIDs$ID)
+
+# exclude all identified outliers
+#stress_rt1 <- stress[! (stress$ID=="EC_014" | stress$ID=="EC_023"), ] #doesn't affect results 
+
+# output extreme outliers
+#unique(RTOutlierIDs$ID[RTOutlierIDs$is.extreme==T])
+
+# exclude only extreme outlier
+stress_rt <- stress[stress$ID!="EC_014", ] #doesn't affect results but this is such an extreme case, we'll exclude it 
+RTMean <- RTMean[RTMean$ID!="EC_014", ] 
+```
+There were 2 outliers but only one was excluded from analysis due to exceptionally long RT.
+
+```{r RTs}
+# RTs by condition
+RT_group_descr <- summarySE(RTMean, measurevar="rt", groupvars="condition", conf.interval=.95, na.rm=T) 
+
+# RTs by condition and trial
+RT_trial_descr <- summarySEwithin(stress_rt, measurevar="rt", betweenvars="condition", withinvars="trial", idvar="ID", conf.interval=.95, na.rm=T) 
+
+# RTs by condition, trial, and sex
+RT_trial_sex_descr <- summarySEwithin(stress_rt, measurevar="rt", betweenvars=c("condition", "sex"), withinvars="trial", idvar="ID", conf.interval=.95, na.rm=T) 
+
+# plot RT across trials by group
+RTPlot <- ggplot(RT_trial_descr, aes(as.numeric(as.character(trial)), rt, colour=condition)) +
+  geom_line(size=1) +
+  geom_errorbar(aes(ymin=rt-se, ymax=rt+se), width=.1) +
+  ylab("RT (ms)") +
+  xlab("Trial") +
+  scale_color_manual(values=c(colour1, colour2, colour3))  +
+  laura_theme
+RTPlot
+
+# rmANOVA with condition and trial and sex as covariate
+
+# check normality assumption
+#stress_rt %>%
+#  group_by(condition, trial) %>%
+#  shapiro_test(rt) 
+
+# run rmANOVA
+rt.fit <- aov_ez("ID","rt", stress_rt, between="condition", within="trial", covariate="sex")
+summary(rt.fit)
+nice(rt.fit, es="pes")
+
+# main effect of condition and trial
+# no sex effect
+
+# post-hoc comparisons - condition
+ref1 <- lsmeans(rt.fit, specs = "condition")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# YC was slower than CC, no difference between EC and CC
+# RTs decreased sharply at the beginning
+
+# try robust ANOVA
+rt.fitrobust <- bwtrim(rt ~ condition*trial, ID, data = stress) # how to include sex as covariate?
+rt.fitrobust
+
+# get effect size
+akp.effect(rt ~ condition, data = stress)
+akp.effect(rt ~ trial, data = stress)
+```
+YC was significantly slower than CC but EC and CC did not differ in RTs. Overall RTs showed a steep decrease across the first few trials, then remained fairly constant. 
+
+## Exhaustion
+```{r exhaustion ratings, plot to identify outliers}
+# boxplot by group and trial
+exhstBoxPlot <- ggplot(ratings, aes(factor(trial), exhausted_rating, fill=condition)) + 
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+    ylab("Exhaustion") +
+    xlab("Trial") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+exhstBoxPlot # no outliers
+```
+There were no outliers with respect to exhaustion ratings.
+
+```{r exhaustion ratings}
+# exhaustion ratings by condition
+exhst_group_descr <- summarySE(ratingMean, measurevar="exhausted_rating", groupvars="condition", conf.interval=.95) 
+
+# exhaustion ratings by condition and trial
+exhst_trial_descr <- summarySEwithin(ratings, measurevar="exhausted_rating", betweenvars="condition", withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# exhaustion ratings by condition, trial, and sex
+exhst_trial_sex_descr <- summarySEwithin(ratings, measurevar="exhausted_rating", betweenvars=c("condition", "sex"), withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# plot ratings across trials by group
+exhstPlot <- ggplot(exhst_trial_descr, aes(as.numeric(as.character(trial)), exhausted_rating, colour=condition)) +
+  geom_line(size=1) +
+  geom_errorbar(aes(ymin=exhausted_rating-se, ymax=exhausted_rating+se), width=.1) +
+  scale_y_continuous(breaks=c(1:7), limits=c(0.9,7.1)) +
+  ylab("Exhaustion") +
+  xlab("Trial") +
+  scale_color_manual(values=c(colour1, colour2, colour3))  +
+  laura_theme
+exhstPlot
+
+# rmANOVA with condition and trial and sex as covariate
+
+# check normality assumption
+exhstqqplot <- ggqqplot(ratings, "exhausted_rating", ggtheme = theme_bw()) +
+  facet_grid(trial ~ condition, labeller = "label_both") # looks ok
+#exhstqqplot
+
+# run rmANOVA
+exhst.fit <- aov_ez("ID","exhausted_rating", ratings, between="condition", within="trial", covariate="sex")
+summary(exhst.fit)
+nice(exhst.fit, es="pes")
+
+# main effect of condition and trial, sex effect
+
+# post-hoc comparisons - condition
+ref1 <- lsmeans(exhst.fit, specs = "condition")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# stress vs. control group differences only
+
+# post-hoc comparisons - trial
+ref2 <- lsmeans(exhst.fit, specs = "trial")
+pwc <- contrast(ref2, method="pairwise", adjust="holm")
+pwc
+
+# exhaustion increases across trials
+
+# plot ratings split for sex
+exhstSexPlot <- ggboxplot(
+  ratings_avers, x = "sex", y = "exhausted_rating",
+  facet.by = "condition", short.panel.labs = FALSE)
+exhstSexPlot
+
+# men in EC reported less exhaution
+```
+Both stress groups reported sig. greater exhaustion compared to the control group, however, they did not differ sig. from each other. Men in EC reported less exhaustion.
+
+## Frustration
+```{r frustration ratings, plot to identify outliers}
+# boxplot by group and trial
+frstBoxPlot <- ggplot(ratings, aes(factor(trial), frustrated_rating, fill=condition)) + 
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+    ylab("Frustration") +
+    xlab("Trial") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+frstBoxPlot # some outiers
+
+# get outlier IDs
+frstOutlierIDs <- ratings %>%
+  group_by(condition, trial) %>%
+  identify_outliers(frustrated_rating)
+
+# output all outliers
+#unique(frstOutlierIDs$ID)
+
+# exclude all identified outliers
+#ratings <- ratings[! (ratings$ID=="CC_005" | ratings$ID=="CC_006" |
+#                           ratings$ID=="CC_015" | ratings$ID=="CC_016" | 
+#                           ratings$ID=="CC_027" | ratings$ID=="CC_009"), ] #improves but does not change results
+
+# output extreme outliers
+#unique(frstOutlierIDs$ID[frstOutlierIDs$is.extreme==T]) # none
+```
+There were a few outliers but none of them were extreme and excluding them did not affect overall results (although it improved statistical significance), so we kept them.
+
+```{r frustration ratings}
+# frustration ratings by condition
+frst_group_descr <- summarySE(ratingMean, measurevar="frustrated_rating", groupvars="condition", conf.interval=.95) 
+
+# frustration ratings by condition and trial
+frst_trial_descr <- summarySEwithin(ratings, measurevar="frustrated_rating", betweenvars="condition", withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# frustration ratings by condition, trial, and sex
+frst_trial_sex_descr <- summarySEwithin(ratings, measurevar="frustrated_rating", betweenvars=c("condition", "sex"), withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# plot ratings across trials by group
+frstPlot <- ggplot(frst_trial_descr, aes(as.numeric(as.character(trial)), frustrated_rating, colour=condition)) +
+  geom_line(size=1) +
+  geom_errorbar(aes(ymin=frustrated_rating-se, ymax=frustrated_rating+se), width=.1) +
+  scale_y_continuous(breaks=c(1:7), limits=c(0.9,7.1)) +
+  ylab("Frustration") +
+  xlab("Trial") +
+  scale_color_manual(values=c(colour1, colour2, colour3))  +
+  laura_theme
+frstPlot
+
+# rmANOVA with condition and trial and sex as covariate
+
+# check normality assumption
+frstqqplot <- ggqqplot(ratings, "frustrated_rating", ggtheme = theme_bw()) +
+  facet_grid(trial ~ condition, labeller = "label_both") # looks ok
+#frstqqplot
+
+# run rmANOVA
+frst.fit <- aov_ez("ID","frustrated_rating", ratings, between="condition", within="trial", covariate="sex")
+summary(frst.fit)
+nice(frst.fit, es="pes")
+
+# main effect of condition and time, sex effect
+# interaction of condition x time
+
+# post-hoc comparisons - condition
+ref1 <- lsmeans(frst.fit, specs = "condition")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# all groups differed significantly from each other
+
+# post-hoc comparisons - trial
+ref2 <- lsmeans(frst.fit, specs = "trial")
+pwc <- contrast(ref2, method="pairwise", adjust="holm")
+pwc
+
+# overall, frustration increased
+
+# post-hoc comparisons - condition, trial
+#ref3 <- lsmeans(frst.fit, specs = c("condition", "trial"))
+#pwc <- contrast(ref3, method="pairwise", adjust="holm")
+#pwc
+
+# just check plot. Only YC showed an increase in frustration 
+
+# plot ratings split for sex
+frstSexPlot <- ggboxplot(
+  ratings_avers, x = "sex", y = "frustrated_rating",
+  facet.by = "condition", short.panel.labs = FALSE)
+frstSexPlot
+
+# men in EC reported less frustration
+```
+YC showed highest levels of frustration followed by EC, then CC. Only YC showed an increase in frustration over time. Men in EC reported less frustration. 
+
+## Feelings of Helplessness
+```{r helplessness ratings, plot to identify outliers}
+# boxplot by group and trial
+helpBoxPlot <- ggplot(ratings, aes(factor(trial), helpless_rating, fill=condition)) + 
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+    ylab("Helplessness") +
+    xlab("Trial") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+helpBoxPlot # some outiers
+
+# get outlier IDs
+helpOutlierIDs <- ratings %>%
+  group_by(condition, trial) %>%
+  identify_outliers(helpless_rating)
+
+# output all outliers
+#unique(helpOutlierIDs$ID)
+
+# exclude all identified outliers
+#ratings_help1 <- ratings_help[! (ratings_help$ID=="CC_005" | ratings_help$ID=="CC_006" |                                ratings_help$ID=="CC_009" | ratings_help$ID=="CC_011" | ratings_help$ID=="CC_025"), ] # not much different from excluding just the extremes
+
+# output extreme outliers
+#unique(helpOutlierIDs$ID[helpOutlierIDs$is.extreme==T]) #2 extreme outliers
+
+# exclude extreme outliers
+#ratings_help <- ratings[! (ratings$ID=="CC_009" | ratings$ID=="CC_016"), ] #does not affect results in a meaningful way
+```
+There were some outliers but excluding them did not change results in a meaningful way, so we kept them.
+
+```{r helplessness ratings}
+# helplessness ratings by condition
+help_group_descr <- summarySE(ratingMean, measurevar="helpless_rating", groupvars="condition", conf.interval=.95) 
+
+# helplessness ratings by condition and trial
+help_trial_descr <- summarySEwithin(ratings, measurevar="helpless_rating", betweenvars="condition", withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# helplessness ratings by condition, trial, and sex
+help_trial_sex_descr <- summarySEwithin(ratings, measurevar="helpless_rating", betweenvars=c("condition", "sex"), withinvars="trial", idvar="ID", conf.interval=.95) 
+
+# plot ratings across trials by group
+helpPlot <- ggplot(help_trial_descr, aes(as.numeric(as.character(trial)), helpless_rating, colour=condition)) +
+  geom_line(size=1) +
+  geom_errorbar(aes(ymin=helpless_rating-se, ymax=helpless_rating+se), width=.1) +
+  scale_y_continuous(breaks=c(1:7), limits=c(0.9,7.1)) +
+  ylab("Helplessness") +
+  xlab("Trial") +
+  scale_color_manual(values=c(colour1, colour2, colour3))  +
+  laura_theme
+helpPlot
+
+# rmANOVA with condition and trial and sex as covariate
+
+# check normality assumption
+helpqqplot <- ggqqplot(ratings, "helpless_rating", ggtheme = theme_bw()) +
+  facet_grid(trial ~ condition, labeller = "label_both") # looks ok
+#helpqqplot
+
+# run rmANOVA
+help.fit <- aov_ez("ID","helpless_rating", ratings, between="condition", within="trial", covariate="sex")
+summary(help.fit)
+nice(help.fit, es="pes")
+
+# main effect of condition, sex effect
+# trend for an interaction of condition x trial if extreme outliers are excluded
+
+# post-hoc comparisons - condition
+ref1 <- lsmeans(help.fit, specs = "condition")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# stress groups differed significantly from CC but not from each other
+
+# post-hoc comparisons - condition and trial
+#ref2 <- lsmeans(help.fit, specs = c("condition", "trial"))
+#pwc <- contrast(ref2, method="pairwise", adjust="holm")
+#pwc
+
+# no meaningful contrasts really aside from the already evident stress vs. control group differences
+
+# plot ratings split for sex
+helpSexPlot <- ggboxplot(
+  ratings_avers, x = "sex", y = "helpless_rating",
+  facet.by = "condition", short.panel.labs = FALSE)
+helpSexPlot
+
+# men in EC reported less helplessness
+```
+Both stress groups reported sig. greater helplessness compared to the control group, however, they did not differ sig. from each other. Men in EC reported less helplessness.
+
+# Changes in Affective State
+
+## Depression and Anxiety (STADI)
+```{r prepare STADI data}
+STADImissings <- unique(affStates$ID[is.na(affStates$STADI_S_Global)]) # get IDs with missing data
+
+# exclude those cases from STADI analysis
+affStatesSTADI <- affStates[!(affStates$ID=="CC_006" | affStates$ID=="CC_008" |
+                              affStates$ID=="EC_009" | affStates$ID=="EC_010" |
+                              affStates$ID=="YC_001" | affStates$ID=="YC_018"), ] 
+```
+```{r depression and anxiety - STADI, plot to identify outliers}
+# reorder factor levels for plotting
+affStatesSTADI$time <- factor(affStatesSTADI$time, levels = c("pre", "post"))
+
+# plot scores by group and time
+STADIPlot <- ggplot(affStatesSTADI, aes(time, STADI_S_Global, fill=condition)) + 
+    geom_violin() +  
+    geom_boxplot(width=0.2, position=position_dodge(1)) +
+    xlab("Time") +
+    ylab("Depression and Anxiety") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+STADIPlot # looks like there are 2 outliers at time point pre
+
+# get outlier IDs
+STADIOutlierIDs <- affStatesSTADI %>%
+  group_by(condition, time) %>%
+  identify_outliers(STADI_S_Global)
+
+# output all outliers
+#unique(STADIOutlierIDs$ID)
+
+# exclude all identified outliers
+affStatesSTADI <- affStatesSTADI[! (affStatesSTADI$ID=="EC_012" | affStatesSTADI$ID=="YC_004"), ] # excluding them changes results significantly
+
+# output extreme outliers
+#unique(STADIOutlierIDs$ID[STADIOutlierIDs$is.extreme==T])
+
+# exclude extreme outliers
+#affStatesSTADI <- affStatesSTADI[affStatesSTADI$ID!="YC_004", ]
+```
+We excluded two outliers with particularly high pre stress induction STADI scores that affected the results significantly.
+
+```{r depression and anxiety - STADI}
+# STADI by condition
+STADI_group_descr <- summarySE(affStatesSTADI, measurevar="STADI_S_Global", groupvars="condition", conf.interval=.95) 
+
+# STADI by condition and time
+STADI_time_descr <- summarySEwithin(affStatesSTADI, measurevar="STADI_S_Global", betweenvars="condition", withinvars="time", idvar="ID", conf.interval=.95) 
+
+# STADI by condition, time, and sex
+STADI_time_sex_descr <- summarySEwithin(affStatesSTADI, measurevar="STADI_S_Global", betweenvars=c("condition", "sex"), withinvars="time", idvar="ID", conf.interval=.95) 
+
+# rmANOVA with condition and time and sex as covariate
+
+# check normality assumption
+STADIqqplot <- ggqqplot(affStatesSTADI, "STADI_S_Global", ggtheme = theme_bw()) +
+  facet_grid(time ~ condition, labeller = "label_both") # looks ok
+#STADIqqplot
+
+# run rmANOVA
+STADI.fit <- aov_ez("ID","STADI_S_Global", affStatesSTADI, between="condition", within="time", covariate="sex")
+summary(STADI.fit)
+nice(STADI.fit, es="pes")
+
+# no group effect, main effect of time, sex effect
+# trend for an interaction of condition x time, sig. if outliers are excluded
+# trend for an interacton of sex x time if outliers are excluded
+
+# post-hoc comparisons - condition and time
+ref1 <- lsmeans(STADI.fit, specs = c("condition", "time"))
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# STADI scores only increase in stress groups, whereas CC pre and post scores are similar 
+
+# reorder factor levels for plotting
+affStatesSTADI$time <- factor(affStatesSTADI$time, levels = c("pre", "post"))
+
+# plot scores split for sex
+STADI.fitSexPlot <- ggboxplot(
+  affStatesSTADI, x = "time", y = "STADI_S_Global",
+  color = "sex", palette = "cbPalette",
+  facet.by = "condition", short.panel.labs = FALSE)
+STADI.fitSexPlot
+
+# women in EC report greater increase in depressive mood and anxiety compared to men
+```
+Depressive mood and anxiety significantly increased from pre to post stress induction. A significant interaction of group x time indicated that this increase was limited to stress groups, whereas scores did not change in CC. Women in EC displayed greater increase in STADI scores compared to men.
+
+## Positive and Negative Mood (PANAS)
+
+### Positive Mood
+```{r positive mood - PANASpos, plot to identify outliers}
+# check for IDs with missing data
+PANASposMissings <- unique(affStates$ID[is.na(affStates$PANAS_pos)]) # no missing PANASpos data
+
+# reorder factor levels for plotting
+affStates$time <- factor(affStates$time, levels = c("pre", "post"))
+
+# plot scores by group and time
+PANASposPlot <- ggplot(affStates, aes(time, PANAS_pos, fill=condition)) + 
+    geom_violin() +  
+    geom_boxplot(width=0.2, position=position_dodge(1)) +
+    xlab("Time") +
+    ylab("Positive Mood") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+PANASposPlot # looks like there are 2 outliers at time point pre
+
+# get outlier IDs
+PANASposOutlierIDs <- affStates %>%
+  group_by(condition, time) %>%
+  identify_outliers(PANAS_pos) # none
+
+# output all outliers
+#unique(PANASposOutlierIDs$ID)
+
+# exclude all identified outliers
+#affStates_PANASpos <- affStates[! (affStates$ID=="EC_012" | affStates$ID=="YC_031"), ] # doesn't change results
+
+# output extreme outliers
+#unique(PANASposOutlierIDs$ID[PANASposOutlierIDs$is.extreme==T]) # none
+```
+There were two outliers but excluding them did not change results on positive mood changes, so we kept them. 
+
+```{r positive mood - PANASpos}
+# PANASpos by condition
+PANASpos_group_descr <- summarySE(affStates, measurevar="PANAS_pos", groupvars="condition", conf.interval=.95) 
+
+# PANASpos by condition and time
+PANASpos_time_descr <- summarySEwithin(affStates, measurevar="PANAS_pos", betweenvars="condition", withinvars="time", idvar="ID", conf.interval=.95) 
+
+# PANASpos by condition, time, and sex
+PANASpos_time_sex_descr <- summarySEwithin(affStates, measurevar="PANAS_pos", betweenvars=c("condition", "sex"), withinvars="time", idvar="ID", conf.interval=.95) 
+
+# rmANOVA with condition and time and sex as covariate
+
+# check normality assumption
+PANASPposqqplot <- ggqqplot(affStates, "PANAS_pos", ggtheme = theme_bw()) +
+  facet_grid(time ~ condition, labeller = "label_both") # looks ok
+#PANASPposqqplot
+
+# run rmANOVA
+PANASpos.fit <- aov_ez("ID","PANAS_pos", affStates, between="condition", within="time", covariate="sex")
+summary(PANASpos.fit)
+nice(PANASpos.fit, es="pes")
+
+# main effect of time with decreased positive mood post stress exposure across groups
+# trend for a sex effect, this disappears if outliers are excluded
+
+# plot scores split for sex
+PANASpos.fitSexPlot <- ggboxplot(
+  affStates, x = "time", y = "PANAS_pos",
+  color = "sex", palette = "cbPalette",
+  facet.by = "condition", short.panel.labs = FALSE)
+PANASpos.fitSexPlot
+
+# men in YC show less decrease in positive mood
+```
+Across groups, positive mood decreased from pre to post stress exposure. No significant group differences were observed. There was a trend for sex effects with men in YC showing less decrease in positive mood from pre to post stress induction.
+
+### Negative Mood
+```{r negative mood - PANASneg, plot to identify outliers}
+# check for IDs with missing data
+PANASnegMissings <- unique(affStates$ID[is.na(affStates$PANAS_neg)]) 
+
+# exclude those cases from PANAS_neg analysis
+affStates_PANASneg <- affStates[!(affStates$ID=="CC_007" | affStates$ID=="EC_027" |
+                                   affStates$ID=="YC_008" | affStates$ID=="YC_012"), ] 
+
+# reorder factor levels for plotting
+affStates_PANASneg$time <- factor(affStates_PANASneg$time, levels = c("pre", "post"))
+
+# plot scores by group and time
+PANASnegPlot <- ggplot(affStates_PANASneg, aes(time, PANAS_neg, fill=condition)) + 
+    geom_violin() +  
+    geom_boxplot(width=0.2, position=position_dodge(1)) +
+    xlab("Time") +
+    ylab("Negative Mood") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+PANASnegPlot # some outliers
+
+# get outlier IDs
+PANASnegOutlierIDs <- affStates_PANASneg %>%
+  group_by(condition, time) %>%
+  identify_outliers(PANAS_neg) 
+
+# output all outliers
+#unique(PANASnegOutlierIDs$ID)
+
+# exclude all identified outliers
+#affStates_PANASneg <- affStates_PANASneg[! (affStates_PANASneg$ID=="CC_016" | affStates_PANASneg$ID=="CC_011" |
+#                                             affStates_PANASneg$ID=="EC_004" | affStates_PANASneg$ID=="EC_005" |
+#                                             affStates_PANASneg$ID=="EC_014" | affStates_PANASneg$ID=="EC_032" |
+#                                             affStates_PANASneg$ID=="YC_009" | affStates_PANASneg$ID=="YC_010" |
+#                                             affStates_PANASneg$ID=="YC_016" | affStates_PANASneg$ID=="YC_034" |
+#                                             affStates_PANASneg$ID=="YC_004"), ] # changes results but doesn't really seem warranted
+
+# output extreme outliers
+#unique(PANASnegOutlierIDs$ID[PANASnegOutlierIDs$is.extreme==T]) 
+
+# exclude extreme outliers
+#affStates_PANASneg2 <- affStates_PANASneg[! (affStates_PANASneg$ID=="CC_016" | affStates_PANASneg$ID=="YC_009" | affStates_PANASneg$ID=="YC_016"), ] # changes results but doesn't really seem warranted
+```
+There were some outliers with respect to negative mood but we did not exclude any participants.
+
+```{r negative mood - PANASneg}
+# PANASneg by condition
+PANASneg_group_descr <- summarySE(affStates_PANASneg, measurevar="PANAS_neg", groupvars="condition", conf.interval=.95) 
+
+# PANASneg by condition and time
+PANASneg_time_descr <- summarySEwithin(affStates_PANASneg, measurevar="PANAS_neg", betweenvars="condition", withinvars="time", idvar="ID", conf.interval=.95) 
+
+# PANASneg by condition, sex, and time
+PANASneg_time_sex_descr <- summarySEwithin(affStates_PANASneg, measurevar="PANAS_neg", betweenvars=c("condition", "sex"), withinvars="time", idvar="ID", conf.interval=.95) 
+
+# rmANOVA with condition and time and sex as covariate
+
+# check normality assumption
+PANASnegqqplot <- ggqqplot(affStates_PANASneg, "PANAS_neg", ggtheme = theme_bw()) +
+  facet_grid(time ~ condition, labeller = "label_both") #bit crooked
+#PANASnegqqplot
+
+# run rmANOVA
+PANASneg.fit <- aov_ez("ID","PANAS_neg", affStates_PANASneg, between="condition", within="time", covariate="sex")
+summary(PANASneg.fit)
+nice(PANASneg.fit, es="pes")
+
+# no main effect of condition, changes if extreme outliers are excluded
+# main effect of time shows increase in neg. mood, disappears if outliers are excluded
+# sig. interaction of condition x time
+# sex effect
+
+# post-hoc comparison - condition and time
+ref1 <- lsmeans(PANASneg.fit, specs = c("condition", "time"))
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# only EC and CC differ in their negative mood post stress exposure 
+# EC shows increased neg. mood
+
+# confirm results with robust ANOVA
+PANASneg.fitrobust <- bwtrim(PANAS_neg ~ condition*time, ID, data = affStates_PANASneg) 
+PANASneg.fitrobust
+
+# reorder factor levels for plotting
+affStates_PANASneg$time <- factor(affStates_PANASneg$time, levels = c("pre", "post"))
+
+# plot ratings split for sex
+PANASneg.fitSexPlot <- ggboxplot(
+  affStates_PANASneg, x = "time", y = "PANAS_neg",
+  color = "sex", palette = "cbPalette",
+  facet.by = "condition", short.panel.labs = FALSE)
+PANASneg.fitSexPlot
+
+# Women in EC and CC showed greater increase in negative mood from pre to post stress exposure than men
+```
+There were no sig. group differences but an overall increase in negative mood. Further, we observed a significant group x time interaction with EC showing an increase in negative mood, whereas the increase in YC did not reach significance and CC rather showed a decrease, albeit non-sig. Women in EC and YC reported greater increase in negative mood compared to men. 
+
+# Escape Behaviour
+
+## Activity (moves per minute)
+```{r activity - escape behaviour test, plot to identify outliers}
+# boxplot by group and phase
+activityBoxPlot <- ggplot(escapeBehav, aes(factor(phase), mpm, fill=condition)) + 
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+    ylab("Activity (moves/minute)") +
+    xlab("Phase") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+activityBoxPlot # some outliers
+
+# get outlier IDs
+activityOutlierIDs <- escapeBehav %>%
+  group_by(condition, phase) %>%
+  identify_outliers(mpm) 
+
+# output all outliers
+#unique(activityOutlierIDs$ID)
+
+# exclude all identified outliers
+#escapeBehav_activity1 <- escapeBehav[! (escapeBehav$ID=="CC_018" | escapeBehav$ID=="CC_026" |
+#                                       escapeBehav$ID=="CC_027" | escapeBehav$ID=="CC_010" |
+#                                       escapeBehav$ID=="CC_013" | escapeBehav$ID=="CC_016" |
+#                                       escapeBehav$ID=="CC_021" | escapeBehav$ID=="EC_008" |
+#                                       escapeBehav$ID=="EC_026" | escapeBehav$ID=="EC_017" |
+#                                       escapeBehav$ID=="EC_019" | escapeBehav$ID=="EC_024"), ] # excluding them changes results but doesn't really seem warranted, no extreme outliers
+
+# output extreme outliers
+#unique(activityOutlierIDs$ID[activityOutlierIDs$is.extreme==T]) #none
+```
+There were some outliers with respect to activity but none of them represented extreme deviations, so we kept them.
+
+```{r activity - escape behaviour test}
+# Activity by condition
+activity_group_descr <- summarySE(escapeBehav, measurevar="mpm", groupvars="condition", conf.interval=.95) 
+
+# Activity by condition and phase
+activity_phase_descr <- summarySEwithin(escapeBehav, measurevar="mpm", betweenvars="condition", withinvars="phase", idvar="ID", conf.interval=.95) 
+
+# Activity by condition, phase and trial
+activity_phase_trial_descr <- summarySEwithin(escapeBehav, measurevar="mpm", betweenvars="condition", withinvars=c("phase", "trial"), idvar="ID", conf.interval=.95) 
+
+# Activity by condition, phase, and sex
+activity_phase_sex_descr <- summarySEwithin(escapeBehav, measurevar="mpm", betweenvars=c("condition", "sex"), withinvars="phase", idvar="ID", conf.interval=.95) 
+
+# plot by group, phase and trial
+activityPlot <- ggplot(escapeBehav, aes(phase, mpm, colour=condition)) +
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+  facet_grid(~trial) +
+  ylab("Activity (moves/minute)") +
+  xlab("Phase") +
+  scale_color_manual(values=c(colour1, colour2, colour3))  +
+  ggtitle("Activity by Group and Phase over Trials")
+  laura_theme
+activityPlot
+
+# rmANOVA with condition and phase and sex as covariate
+
+# check normality assumption
+activityqqplot <- ggqqplot(escapeBehav, "mpm", ggtheme = theme_bw()) +
+  facet_grid(phase ~ condition, labeller = "label_both") 
+#activityqqplot
+
+# run rmANOVA
+activity.fit <- aov_ez("ID","mpm", escapeBehav, between="condition", within="phase", covariate="sex")
+summary(activity.fit)
+nice(activity.fit, es="pes")
+
+# no group effect, main effect of phase, trend for sex effect
+
+# confirm results with robust ANOVA
+activity.fitrobust <- bwtrim(mpm ~ condition*phase, ID, data = escapeBehav) 
+activity.fitrobust
+
+# rmANOVA with condition, phase and time and sex as covariate
+activityTrial.fit <- aov_ez("ID","mpm", escapeBehav, between="condition", within=c("phase", "trial"), covariate="sex")
+summary(activityTrial.fit)
+nice(activityTrial.fit, es="pes")
+
+# no group effect
+# effect of phase --> less activity in stress phase
+# effect of trial and phase x trial
+# sex effect
+# sex x trial effect
+
+# post-hoc comparison - trial
+ref1 <- lsmeans(activityTrial.fit, specs = "trial")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# activity increases over trials
+
+# post-hoc comparison - phase and trial
+#ref2 <- lsmeans(activityTrial.fit, specs = c("phase", "trial"))
+#pwc <- contrast(ref2, method="pairwise", adjust="holm")
+#pwc
+
+# plot activity split by sex and trial
+activity.fitSexPlot <- ggboxplot(
+  escapeBehav, x = "trial", y = "mpm",
+  color = "sex", palette = "cbPalette",
+  facet.by = "condition", short.panel.labs = FALSE)
+activity.fitSexPlot
+
+# women show greater increase in activity over trials
+```
+There were no group differences. Activity was greater in the free exploration phase, without stress exposure compared to the stress phase. Further, activity increased across trials, and differences between the phases were most pronounced at later stages of the experiment. 
+
+## Escapes 
+```{r escapes - escape behaviour test, plot to identify outliers}
+# aggregate by ID and phase because sum_escapes was computed across trials
+escapes <- aggregate(escapeBehav$sum_escapes, list(escapeBehav$ID, escapeBehav$phase), max)
+colnames(escapes) <- c("ID", "phase", "sum_escapes")
+escapes <- join(escapes, demo[, c(1:3)]) # add condition and sex
+
+# escapes are most interesting for stress phase!
+escapesStress <- escapes[escapes$phase!="noStress", ]
+
+# check for outliers by group
+escapesOutlier <- ggplot(escapesStress, aes(condition, sum_escapes, fill=condition)) + 
+    geom_violin() +
+    geom_boxplot(width=0.2) +
+    stat_sum_single(mean) +
+    xlab("Experimental Condition") +
+    ylab("Escapes") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+escapesOutlier # no outliers
+```
+There were no outliers with respect to number of escapes.
+
+```{r escapes - escape behaviour test, assumptions for one-way ANOVA, include = FALSE}
+# Escapes by condition
+escapes_stress_group_descr <- summarySE(escapesStress, measurevar="sum_escapes", groupvars="condition", conf.interval=.95) 
+
+# check assumptions for one-way ANOVA
+
+# check assumption of normally distributed residuals
+escapeModel  <- lm(sum_escapes ~ condition, data = escapesStress)
+ggqqplot(residuals(escapeModel))
+shapiro_test(residuals(escapeModel)) # residuals are non-normally distributed
+```
+Because residuals were not normally distributed, we employed the Kruskal-Wallis test instead of a one-way ANOVA.
+
+```{r escapes - escape behaviour test}
+# run Kruskal-Wallis test instead of one-way ANOVA
+kruskal.test(sum_escapes ~ condition, data = escapesStress)  
+
+# no sig. group differences
+```
+There were no significant group differences in escapes.
+
+## Exploration 
+```{r exploration - escape behaviour test, plot to identify outliers}
+# boxplot by group and phase
+explorationBoxPlot <- ggplot(escapeBehav, aes(factor(phase), exploration, fill=condition)) + 
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+    ylab("Exploration (unique spaces/minute)") +
+    xlab("Phase") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+explorationBoxPlot # some outliers
+
+# get outlier IDs
+explorationOutlierIDs <- escapeBehav %>%
+  group_by(condition, phase) %>%
+  identify_outliers(exploration) 
+
+# output all outliers
+#unique(explorationOutlierIDs$ID)
+
+# exclude all identified outliers
+#escapeBehav <- escapeBehav[! (escapeBehav$ID=="CC_015" | escapeBehav$ID=="CC_016" |
+#                                       escapeBehav$ID=="CC_018" | escapeBehav$ID=="CC_026" |
+#                                       escapeBehav$ID=="CC_013" | escapeBehav$ID=="CC_021" |
+#                                       escapeBehav$ID=="EC_008" | escapeBehav$ID=="EC_026" |
+#                                       escapeBehav$ID=="EC_017" | escapeBehav$ID=="EC_019"), ] # excluding them changes results but doesn't really seem warranted, no extreme outliers
+
+# output extreme outliers
+#unique(explorationOutlierIDs$ID[explorationOutlierIDs$is.extreme==T]) #none
+```
+There were some outliers with respect to exploration but none of them represented extreme deviations, so we kept them.
+
+```{r exploration - escape behaviour test}
+# Exploration by condition
+exploration_group_descr <- summarySE(escapeBehav, measurevar="exploration", groupvars="condition", conf.interval=.95) 
+
+# Exploration by condition and phase
+exploration_phase_descr <- summarySEwithin(escapeBehav, measurevar="exploration", betweenvars="condition", withinvars="phase", idvar="ID", conf.interval=.95) 
+
+# Exploration by condition, phase and trial
+exploration_phase_trial_descr <- summarySEwithin(escapeBehav, measurevar="exploration", betweenvars="condition", withinvars=c("phase", "trial"), idvar="ID", conf.interval=.95) 
+
+# Exploration by condition, phase, and sex
+exploration_phase_sex <- summarySEwithin(escapeBehav, measurevar="exploration", betweenvars=c("condition", "sex"), withinvars="phase", idvar="ID", conf.interval=.95) 
+
+# plot by group, phase and trial
+explorationPlot <- ggplot(escapeBehav, aes(phase, exploration, colour=condition)) +
+  geom_violin() +  
+  geom_boxplot(width=0.2, position=position_dodge(1)) +
+  facet_grid(~trial) +
+  ylab("Exploration (unique spaces/minute)") +
+  xlab("Phase") +
+  scale_color_manual(values=c(colour1, colour2, colour3))  +
+  ggtitle("Exploration by Group and Phase over Trials")
+  laura_theme
+explorationPlot
+
+# rmANOVA with condition and phase and sex as covariate
+
+# check normality assumption
+explorationqqplot <- ggqqplot(escapeBehav, "exploration", ggtheme = theme_bw()) +
+  facet_grid(phase ~ condition, labeller = "label_both")
+#explorationqqplot
+
+# run rmANOVA
+exploration.fit <- aov_ez("ID","exploration", escapeBehav, between="condition", within="phase", covariate="sex")
+summary(exploration.fit)
+nice(exploration.fit, es="pes")
+
+# main effect of time
+
+# rmANOVA with condition, phase and time and sex as covariate
+explorationTrial.fit <- aov_ez("ID","exploration", escapeBehav, between="condition", within=c("phase", "trial"), covariate="sex")
+summary(explorationTrial.fit)
+nice(explorationTrial.fit, es="pes")
+
+# no group effect
+# effect of phase --> less exploration in stress phase
+# effect of trial
+# trend for sex x trial effect
+
+# post-hoc comparison - trial
+ref1 <- lsmeans(explorationTrial.fit, specs = "trial")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+#more exploration over trials
+
+# plot exploration split by sex and trial
+exploration.fitSexPlot <- ggboxplot(
+  escapeBehav, x = "trial", y = "exploration",
+  color = "sex", palette = "cbPalette",
+  facet.by = "condition", short.panel.labs = FALSE)
+exploration.fitSexPlot
+
+# women show greater increase in activity over trials
+```
+There were no significant group differences. Exploration was greater in the free exploration phase, without stress exposure compared to the stress phase. Also, exploration increased across trials.
+
+## Efficiency 
+```{r efficiency - escape behaviour test, plot to identify outliers}
+# aggregate by ID and phase because overall_efficiency was computed across trials
+efficiency <- aggregate(escapeBehav$overall_efficiency, list(escapeBehav$ID, escapeBehav$phase), max)
+colnames(efficiency) <- c("ID", "phase", "overall_efficiency")
+efficiency <- join(efficiency, demo[, c(1:3)]) # add condition and sex
+
+# Efficiency is most interesting for stress phase!
+efficiencyStress <- efficiency[efficiency$phase!="noStress", ]
+
+# check for outliers by group
+efficiencyOutlier <- ggplot(efficiencyStress, aes(condition, overall_efficiency, fill=condition)) + 
+    geom_violin() +
+    geom_boxplot(width=0.2) +
+    stat_sum_single(mean) +
+    xlab("Experimental Condition") +
+    ylab("Efficiency (escapes/activity)") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+efficiencyOutlier # some outliers
+
+# get outlier IDs
+efficiencyOutlierIDs <- efficiencyStress %>%
+  group_by(condition, phase) %>%
+  identify_outliers(overall_efficiency) 
+
+# output all outliers
+#unique(efficiencyOutlierIDs$ID)
+
+# exclude all identified outliers
+#efficiencyStress1 <- efficiencyStress[! (efficiencyStress$ID=="CC_006" | efficiencyStress$ID=="EC_013" | 
+#                                      efficiencyStress$ID=="EC_027" | efficiencyStress$ID=="YC_018" | 
+#                                      efficiencyStress$ID=="YC_022" | efficiencyStress$ID=="YC_031"), ] # excluding them doesn't change results
+
+# output extreme outliers
+#unique(efficiencyOutlierIDs$ID[efficiencyOutlierIDs$is.extreme==T]) 
+
+# exclude extreme outlier
+#efficiencyStress2 <- efficiencyStress[efficiencyStress$ID!="YC_022", ] # excluding them doesn't change results
+```
+There were some outliers with respect to efficiency but excluding them did not affect the results, so we kept them.
+
+```{r efficiency - escape behaviour test, assumptions for one-way ANOVA, include = FALSE}
+# Efficiency by condition
+efficiency_group_descr <- summarySE(efficiencyStress, measurevar="overall_efficiency", groupvars="condition", conf.interval=.95) 
+
+# check assumptions for one-way ANOVA
+
+# check assumption of normally distributed residuals
+efficiencyModel  <- lm(overall_efficiency ~ condition, data = efficiencyStress)
+ggqqplot(residuals(efficiencyModel))
+shapiro_test(residuals(efficiencyModel)) # residuals are non-normally distributed
+```
+Because residuals were not normally distributed, we employed the Kruskal-Wallis test instead of a one-way ANOVA.
+
+```{r efficiency - escape behaviour test}
+# run Kruskal-Wallis test instead of one-way ANOVA)
+kruskal.test(overall_efficiency ~ condition, data = efficiencyStress) 
+
+# no group differences
+```
+Groups did not differ in behavioural efficiency.
+
+# Working Memory (Reading Span)
+```{r working memory - reading span PCL scores, plot to identify outliers}
+readSpanMissings <- unique(readSpan$ID[is.na(readSpan$pcl)]) # get IDs with missing data
+
+# exclude those cases from reading span analysis
+readSpanPCL <- readSpan[!(readSpan$ID=="CC_012" | readSpan$ID=="EC_014" | readSpan$ID=="YC_022"), ] 
+
+# there seems to have been an error in processing data from EC_020, PCL score of 0 is not plausible, exclude!
+readSpanPCL <- readSpanPCL[readSpanPCL$ID!="EC_020", ] 
+
+# check for outliers by group
+wmOutlier <- ggplot(readSpanPCL, aes(condition, pcl, fill=condition)) + 
+    geom_violin() +
+    geom_boxplot(width=0.2) +
+    stat_sum_single(mean) +
+    xlab("Experimental Condition") +
+    ylab("Working Memory Performance") +
+    scale_fill_manual(values=c(colour1, colour2, colour3)) +
+    laura_theme
+wmOutlier # some outliers
+
+# get outlier IDs
+wmOutlierIDs <- readSpanPCL %>%
+  group_by(condition) %>%
+  identify_outliers(pcl)
+
+# output all outliers
+#unique(wmOutlierIDs$ID)
+
+# exclude all identified outliers
+readSpanPCL <- readSpanPCL[!(readSpanPCL$ID=="CC_019" | readSpanPCL$ID=="EC_016" |
+                      readSpanPCL$ID=="YC_006" | readSpanPCL$ID=="YC_021" | readSpanPCL$ID=="YC_033"), ] # changes results
+
+# output extreme outliers
+#unique(wmOutlierIDs$ID[wmOutlierIDs$is.extreme==T]) # none
+```
+There were some outliers with respect to working memory PCL scores and we excluded them since this affected results significantly.
+
+```{r working memory - reading span PCL scores, check assumptions for one-way ANOVA, include = FALSE}
+# working memory PCL score by condition
+wm_group_descr <- summarySE(readSpanPCL, measurevar="pcl", groupvars="condition", conf.interval=.95) 
+
+# check assumptions for one-way ANOVA
+
+# check assumption of normally distributed residuals
+wmModel  <- lm(pcl ~ condition, data = readSpanPCL)
+ggqqplot(residuals(wmModel))
+shapiro_test(residuals(wmModel)) # residuals are normally distributed
+
+# verify homogeneity of variance
+readSpan %>% levene_test(pcl ~ condition)
+plot(wmModel, 1) 
+```
+
+```{r working memory}
+# run ANOVA
+wm.fit <- aov_ez("ID","pcl", readSpanPCL, between="condition", covariate="sex")
+nice(wm.fit, es="pes")
+
+# main effect of condition
+
+# post-hoc comparisons - condition
+ref1 <- lsmeans(wm.fit, specs = "condition")
+pwc <- contrast(ref1, method="pairwise", adjust="holm")
+pwc
+
+# EC performed sig. worse than both CC and YC (EC vs. YC is only sig. when outliers are excluded though)
+```
+There was a significant main effect of group on working memory performance in the reading span test. EC participants performed signficantly worse than both YC and CC. The latter two groups did not differ. 
+
+# Plots for Figure 1
+```{r Figure 1 - simple group comparisons}
+# stressor aversiveness
+fig1avers <- ggplot(ratingMean_avers, aes(x=condition, y=aversive_rating, colour=condition)) + 
+  geom_point(size=5, position=position_dodge2(width=.5), alpha=0.7) +
+  stat_summary(fun.data=mean_se, fun.args = list(mult=1), 
+                 geom="errorbar", color="black", width=.1, size=1) +
+  stat_summary(fun.y=mean, geom="point", shape=21, fill="white", color="black", size=4, stroke=1) +
+  scale_y_continuous(breaks=seq(1,7,1), limits=c(1,NA)) +
+  ylab("Stressor Aversiveness") +
+  xlab("Group") +
+  scale_colour_manual(values=c(colour2, colour3)) +
+  geom_signif(comparisons = list(c("EC","YC")), y_position=7.5,
+              tip_length=0, vjust=.1, map_signif_level=T, size=0.8, textsize=4, colour="black") +
+  laura_theme + theme(legend.position="none") 
+fig1avers
+
+# perceived control
+fig1ctrl<- ggplot(ratingMean, aes(x=condition, y=control_rating, colour=condition)) + 
+  geom_point(size=5, position=position_dodge2(width=.5), alpha=0.7) +
+  stat_summary(fun.data=mean_se, fun.args = list(mult=1), 
+                 geom="errorbar", color="black", width=.1, size=1) +
+  stat_summary(fun.y=mean, geom="point", shape=21, fill="white", color="black", size=4, stroke=1) +
+  scale_y_continuous(breaks=seq(1,7,1)) +
+  ylab("Perceived Control") +
+  xlab("Group") +
+  scale_colour_manual(values=c(colour1, colour2, colour3)) +
+  annotate("rect", xmin=1, xmax=2, ymin=7.5, ymax=7.5, colour="black", size=0.8) + # add sig. line for CC vs. EC
+  annotate("rect", xmin=1, xmax=3, ymin=8, ymax=8, colour="black", size=0.8) + # add sig. line for CC vs. YC
+  annotate("rect", xmin=2, xmax=3, ymin=7.25, ymax=7.25, colour="black", size=0.8) + #add sig. line for EC vs. YC
+  annotate("text", x=1.5, y=7.60, label="***", cex=7) + # add sig. asterisks for CC vs. EC
+  annotate("text", x=2, y=8.1, label="***", cex=7) + # add sig. asterisks for CC vs. YC
+  annotate("text", x=2.5, y=7.35, label="***", cex=7) + #add sig. asterisks for EC vs. YC
+  laura_theme + theme(legend.position="none") 
+fig1ctrl
+
+# helplessness
+fig1help <- ggplot(ratingMean, aes(x=condition, y=helpless_rating, colour=condition)) + 
+  geom_point(size=5, position=position_dodge2(width=.5), alpha=0.7) +
+  stat_summary(fun.data=mean_se, fun.args = list(mult=3), 
+                 geom="errorbar", color="black", width=.1, size=1) +
+  stat_summary(fun.y=mean, geom="point", shape=21, fill="white", color="black", size=4, stroke=1) +
+  scale_y_continuous(breaks=seq(1,7,1)) +
+  ylab("Helplessness") +
+  xlab("Group") +
+  scale_colour_manual(values=c(colour1, colour2, colour3)) +
+  annotate("rect", xmin=1, xmax=2, ymin=7.25, ymax=7.25, colour="black", size=0.8) + # add sig. line for CC vs. EC
+  annotate("rect", xmin=1, xmax=3, ymin=8, ymax=8, colour="black", size=0.8) + # add sig. line for CC vs. YC
+  annotate("rect", xmin=2, xmax=3, ymin=7.5, ymax=7.5, colour="black", size=0.8) + #add sig. line for EC vs. YC
+  annotate("text", x=1.5, y=7.35, label="***", cex=7) + # add sig. asterisks for CC vs. EC
+  annotate("text", x=2, y=8.1, label="***", cex=7) + # add sig. asterisks for CC vs. YC
+  annotate("text", x=2.5, y=7.67, label="NS.", cex=4) + #add sig. asterisks for EC vs. YC
+  laura_theme + theme(legend.position="none") 
+fig1help
+
+# RT 
+fig1rt <- ggplot(RTMean, aes(x=condition, y=rt, colour=condition)) + 
+  geom_point(size=5, position=position_dodge2(width=.5), alpha=0.7) +
+  stat_summary(fun.data=mean_se, fun.args = list(mult=2), 
+                 geom="errorbar", color="black", width=.1, size=1) +
+  stat_summary(fun.y=mean, geom="point", shape=21, fill="white", color="black", size=4, stroke=1) +
+  scale_y_continuous(breaks=seq(200,1000,100), limits=c(NA, 1000)) +
+  ylab("Reaction Time (ms)") +
+  xlab("Group") +
+  scale_colour_manual(values=c(colour1, colour2, colour3)) +
+  annotate("rect", xmin=1, xmax=2, ymin=723, ymax=723, colour="black", size=0.8) + # add sig. line for CC vs. EC
+  annotate("rect", xmin=1, xmax=3, ymin=950, ymax=950, colour="black", size=0.8) + # add sig. line for CC vs. YC
+  annotate("rect", xmin=2, xmax=3, ymin=830, ymax=830, colour="black", size=0.8) + #add sig. line for EC vs. YC
+  annotate("text", x=1.5, y=740, label="NS.", cex=4) + # add sig. asterisks for CC vs. EC
+  annotate("text", x=2, y=957, label="*", cex=7) + # add sig. asterisks for CC vs. YC
+  annotate("text", x=2.5, y=847, label="NS.", cex=4) + #add sig. asterisks for EC vs. YC
+  laura_theme + theme(legend.position="none") 
+fig1rt
+
+#ggarrange(fig1avers, fig1ctrl, fig1help, fig1rt, ncol = 1, nrow = 4)
+```
