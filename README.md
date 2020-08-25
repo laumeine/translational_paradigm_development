@@ -4,7 +4,7 @@ Data and analysis scripts for Meine, L.E., Schüler, K. , Richter-Levin, G., Sch
 
 [Paper](https://doi.org/10.3390/ijms21176010).
 
-[OSF Project Page](https://osf.io/khxjy/).
+[OSF Project Page](https://osf.io/pw4m5/).
 
 For questions, email laura.meine@uni-mainz.de.
 
