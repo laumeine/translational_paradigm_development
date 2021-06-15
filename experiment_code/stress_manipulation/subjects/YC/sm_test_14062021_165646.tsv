@@ -1,0 +1,7 @@
+subject_ID	condition	experimenter	date	start_time	SM_trial_nr	sm_stress_duration	sm_rt	sm_target	sm_first_button_correct	sm_button_presses	sm_stress_onset_time	"How unpleasant are the stimuli for you?"	"How helpless do you feel in relation to the task?"	"How much do you control the task?"	"How exhausting do you find the task?"	"How frustrating do you find the task?"	sm_end_time	event_stress_onset	event_shape_onset	event_response	event_shape_offset	event_ITI	
+test	YC	name1	14.06.2021	16:56:46	1	12.001437907	2.92169601678	2	True	[2]	16:57:03	0.0	0.0	0.0	0.0	0.0	16:59:01	5641	14659	15355	15406	17558	
+test	YC	name1	14.06.2021	16:56:46	2	12.0001462465	2.12317427991	1	True	[1]	16:57:19	0.0	0.0	0.0	0.0	0.0	16:59:01	21641	31439	31948	32202	33556	
+test	YC	name1	14.06.2021	16:56:46	3	12.0015914841	1.02067173574	3	True	"[3, 2, 1]"	16:57:35	7.0	6.0	1.0	6.0	7.0	16:59:01	37795	47541	48085	48321	64236	
+test	YC	name1	14.06.2021	16:56:46	4	8.59322149449	2.37268223586	3	False	[2]	16:58:05	0.0	0.0	0.0	0.0	0.0	16:59:01	68254	74404	75052	75168	76762	
+test	YC	name1	14.06.2021	16:56:46	5	12.0004867552	1.21151461759	1	True	[1]	16:58:18	0.0	0.0	0.0	0.0	0.0	16:59:01	81150	91862	92459	92626	93067	
+test	YC	name1	14.06.2021	16:56:46	6	8.90263100696	-1	2	None	[]	16:58:35	7.0	6.0	1.0	6.0	7.0	16:59:01	97472	104439	None	105220	122523	
