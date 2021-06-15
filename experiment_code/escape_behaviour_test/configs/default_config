@@ -1,0 +1,161 @@
+[EBT]
+# Show dialog box, TRUE/FALSE
+DIALOG_BOX:TRUE
+
+# Exploration TRUE/FALSE
+EXPLORATION_PHASE:FALSE
+# Number of blocks
+BLOCKS: 3
+# Randomize map after each block TRUE/FALSE
+# If FALSE, one map will be generated/loaded depending on MAP_CONFIG at beginning of Block 1 and kept for all blocks.
+RANDOM_MAP_ON_BLOCK:TRUE
+# Number of trials per block
+TRIALS_PER_BLOCK: 5
+
+# Number of phases per trial
+# PHASES_PER_TRIAL: n
+# Config file should contain n phases named PHASE[1..n].
+# See phases section
+PHASES_PER_TRIAL: 2
+
+# Should trial end upon encounter of safe place?
+STOP_ON_GOAL: TRUE
+
+# Fullscreen for task
+FULLSCREEN:TRUE
+
+##########################################################################################
+# Stress configuration
+# SHOCK and NOISE might be redundant
+# Shock:
+SHOCK:TRUE
+NUMBER_OF_SHOCK_REPETITIONS:2
+WAIT_NEXT_SHOCK:0.03
+MAX_SHOCKS_PER_PHASE:6
+#At multiples of x ms a shock will be administered (+/- Jitter)
+SHOCK_EVERY:1500
+# How many ms we can be too early or too late
+JITTER: 250
+
+# Noise
+NOISE_PATH:escape_behaviour_test/noise100ms_rampStart.wav
+# In seconds
+SOUND_LENGTH:0.1
+ISI_MIN: 0.05
+ISI_MAX: 0.2
+
+##########################################################################################
+# Screens: INSTRUCTIONS, PAUSE_SCREEN, END_SCREEN
+#   Values:
+#   TIMEOUT:Timeout in seconds
+#   TEXT: String. <br> for Linebreak
+#   TEXT_SIZE: Height of the font in pixels
+#   FULL_SCREEN: TRUE/FALSE
+#   X_SIZE: Size in pixels if FULL_SCREEN:FALSE
+#   Y_SIZE: Size in pixels if FULL_SCREEN:FALSE
+#   BREAK_ON_KEY: TRUE/FALSE
+
+[INSTRUCTIONS]
+TIMEOUT:60
+TEXT: In the following task, you will be repeatedly exposed to unpleasant stimuli (noise + electrical stimuli). <br> Use the arrow keys to move within the displayed area. Try to find safe places. <br> When you are ready, start the task by pressing the spacebar.
+
+TEXT_SIZE:30
+FULL_SCREEN:TRUE
+X_SIZE:800
+Y_SIZE:800
+BREAK_ON_KEY:TRUE
+
+[PAUSE_SCREEN]
+TIMEOUT:2
+TEXT:+
+TEXT_SIZE:30
+FULL_SCREEN:TRUE
+X_SIZE:800
+Y_SIZE:800
+BREAK_ON_KEY:FALSE
+
+[END_SCREEN]
+TIMEOUT:60
+TEXT: Thank you. Press the spacebar to end this task.
+TEXT_SIZE:30
+FULL_SCREEN:TRUE
+X_SIZE:800
+Y_SIZE:800
+BREAK_ON_KEY:TRUE
+
+##########################################################################################
+[RATING]
+TEXT:Please rate with the help of the scale how unpleasant the electrical stimuli and the sounds were for you.
+
+##########################################################################################
+# Phases
+# Phase0 is the optional exploration phase
+# Phase1 to Phase PHASES_PER_TRIAL will be repeated every trial.
+# There have to be at least PHASES_PER_TRIAL many phases defined.
+# Values:
+#   NAME: String
+#   DURATION: Milliseconds
+#   NOISE:TRUE/FALSE
+#   SHOCK:TRUE/FALSE
+
+[PHASE0]
+NAME: Exploration
+DURATION: 15000
+NOISE:FALSE
+SHOCK:FALSE
+
+[PHASE1]
+NAME: NoStress
+DURATION: 15000
+NOISE:FALSE
+SHOCK:FALSE
+STOP_ON_GOAL: FALSE
+
+[PHASE2]
+NAME: Stress
+DURATION: 15000
+NOISE:TRUE
+SHOCK:TRUE
+
+#############################################################
+[MAP_CONFIG]
+# Display settings
+# Colors: RGBA (A=opacity)
+BACKGROUND_COLOR: 0,0,0,255
+WALL_COLOR: 96,96,96,96
+TILE_COLOR: 224,224,224,255
+GOAL_COLOR: 0,255,0,255
+# Size of tile in pixels
+TILE_SIZE: 35
+# width of tile contour (in pixels)
+TILE_MARGIN: 1
+#
+# MAP:RANDOM to generate map with settings of [RANDOM]
+# MAP:escape_behaviour_test/maps/name.map for file
+# Number of goals has to be the same across all maps.
+MAP:RANDOM
+
+# Configuration of random map generator
+[RANDOM]
+#X_SIZE and Y_SIZE
+X_SIZE: 15
+Y_SIZE: 15
+# nr of safe places
+NUM_GOALS: 4
+#START_POS: RANDOM or x,y coordinates
+START_POS: 7,7
+
+# Configuration of Exploration map
+[EXPLORATION_MAP]
+#X_SIZE and Y_SIZE
+X_SIZE: 15
+Y_SIZE: 15
+# nr of safe places. These will be (-1,-1), for logging.
+NUM_GOALS: 4
+#START_POS: RANDOM or x,y coordinates
+START_POS: 7,7
+
+##########################################################################################
+[SAVE_CONFIGURATION]
+#SAVE_CONDITION:[MOVE,KEY]
+SAVE_CONDITION:MOVE
