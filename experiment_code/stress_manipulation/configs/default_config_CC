@@ -1,0 +1,117 @@
+[SM]
+# Number of trials (45; set to 6 for testing purposes)
+TRIALS:45
+
+#group number (Overwritten by sm_main_script)
+GROUP:3
+
+# Show rating after every n-th trial (9; set to 3 for testing purposes)
+REPEAT_RATING:9
+
+###################################################
+# Trial timing settings
+
+# Time between trials (s). STRESS_PAUSE is displayed during ITI.
+ITI:3
+ITI_JITTER:0.25
+
+# Time fixation cross is shown before trial and stress starts(after pause)
+ANTICIPATION_TIME:1
+
+# Time until Shape appears (s) after trial start. (Except YC)
+SHOW_SHAPE:8
+SHOW_SHAPE_JITTER:0.25
+
+# Decay SHOW_SHAPE by SHOW_SHAPE_DECAY (s) every SHOW_SHAPE_DECAY_INTERVAL-th trial.
+SHOW_SHAPE_DECAY:0.5
+SHOW_SHAPE_DECAY_INTERVAL:9
+
+# Hide shape after n seconds after show_shape. Don't log keys pressed after.
+HIDE_SHAPE: 0.75
+
+# maximum stress time (s)
+# if shape is shown for STRESS_MAX - SHOW_SHAPE seconds
+STRESS_MAX: 12
+
+# Time until circle appears for YC group, must be >1 !!
+# (discount from sibling's reaction time: RT (eg 10 sec) - discount (eg 4 sec)
+# --> circle appears randomly in that time window between 6 and 10 secs)
+# show_shape for YC is uniform between RT-DISCOUNT and RT-HIDE_SHAPE
+DISCOUNT:4.75
+
+###################################################
+# Noise settings
+
+# Play noise (True/False)
+NOISE:False
+
+# Path to noise file
+NOISE_PATH:stress_manipulation/noise100ms_rampStart.wav
+
+# Waiting time between Sounds (s) (next sound comes between next ISI_MIN and ISI_MAX seconds
+ISI_MIN:0.05
+ISI_MAX:0.2
+
+# How long sound is played (s)
+SOUND_LENGTH:0.1
+
+###################################################
+# Shock settings
+
+# Enable Shock (True/False)
+SHOCK:False
+
+SHOCK_INTERVAL:1.5
+SHOCK_JITTER:0.25
+
+# number of shocks applied during one shock event
+NUMBER_SHOCK_REPETITIONS:2
+# Time between shock repetitions
+TIME_BETWEEN_SHOCKS:0.02
+
+###################################################
+# Text Strings displayed on screen
+
+# Instruction screen texts
+# Displayed on startup
+START:  Welcome to the experiment.
+
+        Please put on the headphones now and make sure they are firmly in place.
+
+        Then press the spacebar to begin.
+
+# Displayed before first trial
+
+SM_INSTRUCTION1:Instructions:
+                In each trial, either a CIRCLE, a TRIANGLE, or a SQUARE will appear.
+                Press the UP ARROW key as quickly as possible while the shape is displayed.
+
+                To continue, press the spacebar.
+
+SM_INSTRUCTION2:In between, you will be asked to answer some questions. Please use the RIGHT and LEFT ARROW keys and confirm your answer with the SPACEBAR.
+                Please look only at your screen during the entire task.
+                If you have any questions, please contact your experimenter now.
+
+                Otherwise, you can start by pressing the spacebar.
+
+# Displayed before exit, after rating.
+ENDE:   Thank you.
+
+        Press the spacebar to end this task.
+
+# Text for stress pause
+STRESS_PAUSE: Short Break
+
+# Rating items
+# Ascending order from ITEM1 to ITEMn, number variable
+# ITEMn:Question text?
+ITEM1:How unpleasant is the task for you?
+ITEM2:How helpless do you feel in relation to the task?
+ITEM3:How much do you control the task?
+ITEM4:How exhausting do you find the task?
+ITEM5:How frustrating do you find the task?
+
+###################################################
+# Working Directory. None or Path.
+# If working dir None, current directory is chosen
+WORKING_DIRECTORY:None
